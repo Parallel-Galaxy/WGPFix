@@ -3,7 +3,7 @@
     <modelVersion>4.0.0</modelVersion>
     <groupId>me.asofold.bpl</groupId>
     <artifactId>WorldGuardPistonFix</artifactId>
-    <version>2.2.0</version>
+    <version>2.3.1</version>
     <name>WorldGuardPistonFix</name>
 
     <repositories>
@@ -22,7 +22,7 @@
 
     <build>
         <defaultGoal>clean package</defaultGoal>
-        <finalName>WGPFix</finalName>
+        <finalName>WGPFix-${version}</finalName>
         <resources>
             <!-- plugin.yml here to fill in the correct content. -->
             <resource>

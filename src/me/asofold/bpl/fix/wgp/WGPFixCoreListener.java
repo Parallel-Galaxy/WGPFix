@@ -31,6 +31,7 @@ import com.sk89q.worldguard.domains.DefaultDomain;
 import com.sk89q.worldguard.protection.ApplicableRegionSet;
 import com.sk89q.worldguard.protection.managers.RegionManager;
 import com.sk89q.worldguard.protection.regions.ProtectedRegion;
+import com.sk89q.worldedit.math.BlockVector3;
 
 public class WGPFixCoreListener implements Listener {
 	WGPFix plugin;
@@ -83,7 +84,7 @@ public class WGPFixCoreListener implements Listener {
 		final boolean isSticky = event.isSticky();
 		if ( bSize>0 ){
 			for ( Block block : affectedBlocks){
-				final int id = block.getTypeId();
+				final int id = block.getBlockData().getMaterial().getId();
 				if (isSticky ){
 					if ( denySticky.contains(id) ){
 						event.setCancelled(true);
@@ -105,7 +106,7 @@ public class WGPFixCoreListener implements Listener {
 			locs.add(endBlock.getLocation());
 		}
 		else endBlock = extensionBlock;
-		final int id = endBlock.getTypeId();
+		final int id = endBlock.getBlockData().getMaterial().getId();
 		if (isSticky ){ // TODO: get rid of code cloning.
 			if ( denySticky.contains(id) ){
 				event.setCancelled(true);
@@ -144,7 +145,7 @@ public class WGPFixCoreListener implements Listener {
 		final Block extensionBlock = pistonBlock.getRelative(dir);
 		if ( isSticky){
 			final Block affectedBlock = extensionBlock.getRelative(dir);
-			final int id = affectedBlock.getTypeId();
+			final int id = affectedBlock.getBlockData().getMaterial().getId();
 			if ( denySticky.contains(id)){
 				event.setCancelled(true);
 				if (popDisallowed) pop(pistonBlock, pistonBlock.getRelative(dir), isSticky );
@@ -257,7 +258,7 @@ public class WGPFixCoreListener implements Listener {
 	
 
 	void pop(Block pistonBlock, Block extensionBlock, boolean isSticky) {
-		int itemId = isSticky ? 29:33;
+		Material materialItem = isSticky ? Material.STICKY_PISTON:Material.PISTON;
 		pistonBlock.setType(Material.AIR);
 		pistonBlock.getState().update();
 		if (extensionBlock!=null){
@@ -268,7 +269,7 @@ public class WGPFixCoreListener implements Listener {
 		double x = .5 + pistonBlock.getX();
 		double y = .5 + pistonBlock.getY();
 		double z = .5 + pistonBlock.getZ();
-		world.dropItemNaturally(new Location(world,x,y,z), new ItemStack(itemId,1));
+		world.dropItemNaturally(new Location(world,x,y,z), new ItemStack(materialItem,1));
 	}
 	
 	/**
@@ -281,8 +282,8 @@ public class WGPFixCoreListener implements Listener {
 	final boolean sameOwners(final Location refLoc, final List<Location> locs){
 		final WorldGuardPlugin wg = getWorldGuard();
 		if ( wg == null) return false; // security option.
-		final RegionManager mg = wg.getRegionManager(refLoc.getWorld());
-		ApplicableRegionSet set = mg.getApplicableRegions(refLoc);
+		final RegionManager mg = com.sk89q.worldguard.WorldGuard.getInstance().getPlatform().getRegionContainer().get((com.sk89q.worldedit.world.World) refLoc.getWorld());
+		ApplicableRegionSet set = mg.getApplicableRegions(BlockVector3.at(refLoc.getX(), refLoc.getY(), refLoc.getZ()));
 		final boolean isRegion = set.size() != 0;
 		boolean hasEmpty = !isRegion;
 		// TODO: use some caching ?
@@ -298,7 +299,7 @@ public class WGPFixCoreListener implements Listener {
 			if (isRegion) applicableSets.add(set);
 		}
 		for ( Location loc : locs){
-			set = mg.getApplicableRegions(loc);
+			set = mg.getApplicableRegions(BlockVector3.at(loc.getX(), loc.getY(), loc.getZ()));
 			if (set.size()==0){ // ok.
 				hasEmpty = true;
 			} else if ( isRegion ){
