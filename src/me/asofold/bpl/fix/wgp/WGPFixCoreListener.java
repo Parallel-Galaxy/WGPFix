@@ -6,6 +6,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
 
+import com.sk89q.worldedit.bukkit.BukkitAdapter;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Material;
@@ -267,8 +268,7 @@ public class WGPFixCoreListener implements Listener {
 		final WorldGuardPlugin wg = getWorldGuard();
 		if (wg == null) return false; // security option.
 		final RegionManager mg = com.sk89q.worldguard.WorldGuard.getInstance().getPlatform().getRegionContainer()
-		                                                        .get((com.sk89q.worldedit.world.World) refLoc
-				                                                        .getWorld());
+		                                                        .get(BukkitAdapter.adapt(refLoc.getWorld()));
 		ApplicableRegionSet set = mg.getApplicableRegions(BlockVector3.at(refLoc.getX(), refLoc.getY(), refLoc.getZ()));
 		final boolean isRegion = set.size() != 0;
 		boolean hasEmpty = !isRegion;
