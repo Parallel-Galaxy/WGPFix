@@ -35,9 +35,11 @@ import com.sk89q.worldedit.math.BlockVector3;
 
 public class WGPFixCoreListener implements Listener {
 	WGPFix plugin;
-	public WGPFixCoreListener(WGPFix plugin){
+
+	public WGPFixCoreListener(WGPFix plugin) {
 		this.plugin = plugin;
 	}
+
 	long tsWG = 0;
 	WorldGuardPlugin wg = null;
 	// config settings:
@@ -47,51 +49,42 @@ public class WGPFixCoreListener implements Listener {
 	boolean popDisallowed = false;
 	boolean monitorStructureGrowth = false;
 	boolean monitorFromTo = false;
-	
-	
+
+
 	boolean panic = false;
-	
+
 	int maxBlocks = WGPFix.defaultMaxBlocks;
-	
+
 	/**
-	 * Deny block ids from being affected by sticky pistons.
-	 * contains all from denAll as well.
+	 * Deny block materials from being affected by sticky pistons. contains all from denAll as well.
 	 */
-	public final Set<Integer> denySticky = new HashSet<Integer>();
+	public final Set<Material> denySticky = new HashSet<Material>();
 	/**
-	 * Deny block ids from being affected by any piston type.
+	 * Deny block materials from being affected by any piston type.
 	 */
-	public final Set<Integer> denyAll = new HashSet<Integer>();
-	
-	
-	@EventHandler(priority=EventPriority.LOW)
+	public final Set<Material> denyAll = new HashSet<Material>();
+
+
+	@EventHandler(priority = EventPriority.LOW)
 	final void onBlockPistonExtend(final BlockPistonExtendEvent event) {
-		if ( panic){
+		if (panic) {
 			event.setCancelled(true);
 			return;
 		}
-		if ( !monitorPistons) return;
-		if ( event.isCancelled()) return;
+		if (!monitorPistons) return;
+		if (event.isCancelled()) return;
 		final Block pistonBlock = event.getBlock();
 		final List<Block> affectedBlocks = event.getBlocks();
 		final List<Location> locs = new LinkedList<Location>();
 		final BlockFace dir = event.getDirection();
 		final Block extensionBlock = pistonBlock.getRelative(dir);
 		locs.add(extensionBlock.getLocation());
-		final int bSize; 
-		if ( affectedBlocks == null ) bSize = 0; // TODO: remove if really redundant.
-		else bSize = affectedBlocks.size();
+		final int bSize = affectedBlocks.size();
 		final boolean isSticky = event.isSticky();
-		if ( bSize>0 ){
-			for ( Block block : affectedBlocks){
-				final int id = block.getBlockData().getMaterial().getId();
-				if (isSticky ){
-					if ( denySticky.contains(id) ){
-						event.setCancelled(true);
-						if (popDisallowed) pop(pistonBlock, null, isSticky);
-						return;
-					}
-				} else if ( denyAll.contains(id)){
+		if (bSize > 0) {
+			for (Block block : affectedBlocks) {
+				final Material type = block.getBlockData().getMaterial();
+				if ((isSticky ? denySticky : denyAll).contains(type)) {
 					event.setCancelled(true);
 					if (popDisallowed) pop(pistonBlock, null, isSticky);
 					return;
@@ -101,96 +94,87 @@ public class WGPFixCoreListener implements Listener {
 		}
 		// add empty block at end
 		final Block endBlock;
-		if (bSize>0){
-			endBlock = pistonBlock.getRelative(dir, bSize+1);
+		if (bSize > 0) {
+			endBlock = pistonBlock.getRelative(dir, bSize + 1);
 			locs.add(endBlock.getLocation());
-		}
-		else endBlock = extensionBlock;
-		final int id = endBlock.getBlockData().getMaterial().getId();
-		if (isSticky ){ // TODO: get rid of code cloning.
-			if ( denySticky.contains(id) ){
+		} else endBlock = extensionBlock;
+		final Material type = endBlock.getBlockData().getMaterial();
+		if (isSticky) { // TODO: get rid of code cloning.
+			if (denySticky.contains(type)) {
 				event.setCancelled(true);
 				if (popDisallowed) pop(pistonBlock, null, isSticky);
 				return;
 			}
-		} else if ( denyAll.contains(id)){
+		} else if (denyAll.contains(type)) {
 			event.setCancelled(true);
 			if (popDisallowed) pop(pistonBlock, null, isSticky);
 			return;
 		}
-		if ( bSize + 2 > maxBlocks ){ //  >= because the base is counted in
-			event.setCancelled(true);	
-			if (popDisallowed) pop(pistonBlock, null, isSticky );
-			return;
-		}
-		else 
-		if ( !sameOwners(pistonBlock.getLocation(), locs)){
+		if (bSize + 2 > maxBlocks) { //  >= because the base is counted in
 			event.setCancelled(true);
 			if (popDisallowed) pop(pistonBlock, null, isSticky);
-		} 
+		} else if (!sameOwners(pistonBlock.getLocation(), locs)) {
+			event.setCancelled(true);
+			if (popDisallowed) pop(pistonBlock, null, isSticky);
+		}
 	}
 
-	@EventHandler(priority=EventPriority.LOW, ignoreCancelled = true)
+	@EventHandler(priority = EventPriority.LOW, ignoreCancelled = true)
 	final void onBlockPistonRetract(final BlockPistonRetractEvent event) {
-		if (panic){
+		if (panic) {
 			event.setCancelled(true);
 			return;
 		}
 		if (!monitorPistons) return;
-		final boolean isSticky = event.isSticky() ;
-		if (!(isSticky|| preventNonStickyRetract)) return;
+		final boolean isSticky = event.isSticky();
+		if (!(isSticky || preventNonStickyRetract)) return;
 		final BlockFace dir = event.getDirection();
 		final Block pistonBlock = event.getBlock();
 		final List<Location> affected = new LinkedList<Location>();
 		final Block extensionBlock = pistonBlock.getRelative(dir);
-		if ( isSticky){
+		if (isSticky) {
 			final Block affectedBlock = extensionBlock.getRelative(dir);
-			final int id = affectedBlock.getBlockData().getMaterial().getId();
-			if ( denySticky.contains(id)){
+			final Material type = affectedBlock.getBlockData().getMaterial();
+			if (denySticky.contains(type)) {
 				event.setCancelled(true);
-				if (popDisallowed) pop(pistonBlock, pistonBlock.getRelative(dir), isSticky );
+				if (popDisallowed) pop(pistonBlock, pistonBlock.getRelative(dir), isSticky);
 				return;
-			}
-			else if ( id != 0 )	affected.add(affectedBlock.getLocation());
+			} else if (type != Material.AIR && type != Material.CAVE_AIR) affected.add(affectedBlock.getLocation());
 		}
 		affected.add(extensionBlock.getLocation());
-		if (affected.size() >= maxBlocks ){ //  >= because the base is counted in
-			event.setCancelled(true);	
-			if (popDisallowed) pop(pistonBlock, pistonBlock.getRelative(dir), isSticky );
-			return;
+		if (affected.size() >= maxBlocks) { //  >= because the base is counted in
+			event.setCancelled(true);
+			if (popDisallowed) pop(pistonBlock, pistonBlock.getRelative(dir), isSticky);
+		} else if (!sameOwners(pistonBlock.getLocation(), affected)) {
+			event.setCancelled(true);
+			if (popDisallowed) pop(pistonBlock, pistonBlock.getRelative(dir), isSticky);
 		}
-		else 
-		if ( !sameOwners(pistonBlock.getLocation(), affected)){
-			event.setCancelled(true);	
-			if (popDisallowed) pop(pistonBlock, pistonBlock.getRelative(dir), isSticky );
-			return;
-		} 
 	}
-	
-	@EventHandler(priority=EventPriority.LOW, ignoreCancelled = true)
-	final void onStructureGrow(StructureGrowEvent event){
-		if (panic){
+
+	@EventHandler(priority = EventPriority.LOW, ignoreCancelled = true)
+	final void onStructureGrow(StructureGrowEvent event) {
+		if (panic) {
 			event.setCancelled(true);
 			return;
 		}
 		if (!monitorStructureGrowth) return;
 		final List<Location> affected = new LinkedList<Location>();
-		for ( BlockState state : event.getBlocks()){
+		for (BlockState state : event.getBlocks()) {
 			affected.add(state.getLocation());
 		}
 		Location loc = event.getLocation();
-		if ( loc == null){
+		if (loc == null) {
 			// compatibility check (i do not know what else might be grown later on and how).
-			if ( affected.isEmpty()) return;
+			if (affected.isEmpty()) return;
 			else loc = affected.remove(0);
-			if ( affected.isEmpty()) return;
+			if (affected.isEmpty()) return;
 		}
 		if (!sameOwners(loc, affected)) event.setCancelled(true);
 	}
-	
-	@EventHandler(priority=EventPriority.LOW, ignoreCancelled = true)
-	final void onBlockFromTo(final BlockFromToEvent event){
-		if (panic){
+
+	@EventHandler(priority = EventPriority.LOW, ignoreCancelled = true)
+	final void onBlockFromTo(final BlockFromToEvent event) {
+		if (panic) {
 			event.setCancelled(true);
 			return;
 		}
@@ -200,20 +184,19 @@ public class WGPFixCoreListener implements Listener {
 		final Block from = event.getBlock();
 		final Block to = event.getToBlock();
 		final List<Location> affected = new ArrayList<Location>(1);
-		if (to != null){
+		if (to != null) {
 			affected.add(to.getLocation());
-		}
-		else{
+		} else {
 			affected.add(from.getRelative(event.getFace()).getLocation());
 		}
-		if (!sameOwners(from.getLocation(), affected)){
+		if (!sameOwners(from.getLocation(), affected)) {
 			event.setCancelled(true);
 		}
 	}
-	
+
 	// TODO dropper / dispenser ...
-	@EventHandler(priority=EventPriority.LOW, ignoreCancelled = true)
-	final void onBlockDispense(final BlockDispenseEvent event){
+	@EventHandler(priority = EventPriority.LOW, ignoreCancelled = true)
+	final void onBlockDispense(final BlockDispenseEvent event) {
 		final Block block = event.getBlock();
 		final ItemStack stack = event.getItem();
 		if (stack == null || block == null) {
@@ -251,17 +234,17 @@ public class WGPFixCoreListener implements Listener {
 		final Block to = block.getRelative(((Directional) data).getFacing());
 		final List<Location> affected = new ArrayList<Location>(1);
 		affected.add(to.getLocation());
-		if (!sameOwners(block.getLocation(), affected)){
+		if (!sameOwners(block.getLocation(), affected)) {
 			event.setCancelled(true);
 		}
 	}
-	
+
 
 	void pop(Block pistonBlock, Block extensionBlock, boolean isSticky) {
-		Material materialItem = isSticky ? Material.STICKY_PISTON:Material.PISTON;
+		Material materialItem = isSticky ? Material.STICKY_PISTON : Material.PISTON;
 		pistonBlock.setType(Material.AIR);
 		pistonBlock.getState().update();
-		if (extensionBlock!=null){
+		if (extensionBlock != null) {
 			extensionBlock.setType(Material.AIR);
 			extensionBlock.getState().update();
 		}
@@ -269,20 +252,23 @@ public class WGPFixCoreListener implements Listener {
 		double x = .5 + pistonBlock.getX();
 		double y = .5 + pistonBlock.getY();
 		double z = .5 + pistonBlock.getZ();
-		world.dropItemNaturally(new Location(world,x,y,z), new ItemStack(materialItem,1));
+		world.dropItemNaturally(new Location(world, x, y, z), new ItemStack(materialItem, 1));
 	}
-	
+
 	/**
-	 * In case of registered region checkers this will query them and return false if they return false.
-	 * Furthermore this adds refLoc to locs in that case (!).
+	 * In case of registered region checkers this will query them and return false if they return false. Furthermore
+	 * this adds refLoc to locs in that case (!).
+	 *
 	 * @param refLoc
 	 * @param locs
 	 * @return
 	 */
-	final boolean sameOwners(final Location refLoc, final List<Location> locs){
+	final boolean sameOwners(final Location refLoc, final List<Location> locs) {
 		final WorldGuardPlugin wg = getWorldGuard();
-		if ( wg == null) return false; // security option.
-		final RegionManager mg = com.sk89q.worldguard.WorldGuard.getInstance().getPlatform().getRegionContainer().get((com.sk89q.worldedit.world.World) refLoc.getWorld());
+		if (wg == null) return false; // security option.
+		final RegionManager mg = com.sk89q.worldguard.WorldGuard.getInstance().getPlatform().getRegionContainer()
+		                                                        .get((com.sk89q.worldedit.world.World) refLoc
+				                                                        .getWorld());
 		ApplicableRegionSet set = mg.getApplicableRegions(BlockVector3.at(refLoc.getX(), refLoc.getY(), refLoc.getZ()));
 		final boolean isRegion = set.size() != 0;
 		boolean hasEmpty = !isRegion;
@@ -290,84 +276,86 @@ public class WGPFixCoreListener implements Listener {
 		final Set<String> mustMatch = getUserSet(set);
 		final int size = mustMatch.size();
 		final boolean hasCheckers = !WGPFix.regionCheckers.isEmpty();
-		List<ApplicableRegionSet> applicableSets  = null;
-		
+		List<ApplicableRegionSet> applicableSets = null;
+
 		// TODO: could use some caching and also fast heuristic without checking owners if same regions. problem: checkers
-		
-		if ( hasCheckers){ 
+
+		if (hasCheckers) {
 			applicableSets = new LinkedList<ApplicableRegionSet>();
 			if (isRegion) applicableSets.add(set);
 		}
-		for ( Location loc : locs){
+		for (Location loc : locs) {
 			set = mg.getApplicableRegions(BlockVector3.at(loc.getX(), loc.getY(), loc.getZ()));
-			if (set.size()==0){ // ok.
+			if (set.size() == 0) { // ok.
 				hasEmpty = true;
-			} else if ( isRegion ){
+			} else if (isRegion) {
 				// compare owner sets:
 				final Set<String> ref = getUserSet(set);
-				if ( size != ref.size() ) return false;
-				if ( !mustMatch.containsAll(ref)) return false;
+				if (size != ref.size()) return false;
+				if (!mustMatch.containsAll(ref)) return false;
 				if (hasCheckers) applicableSets.add(set);
 			} else {
 				// disallow from no region to unowned region !
-				return false; 
+				return false;
 			}
-			
+
 		}
-		if (hasCheckers){
+		if (hasCheckers) {
 			final String worldName = refLoc.getWorld().getName();
-			for ( WGPRegionChecker checker : WGPFix.regionCheckers){
+			for (WGPRegionChecker checker : WGPFix.regionCheckers) {
 				locs.add(refLoc);
-				if ( !checker.checkRegions(worldName, applicableSets, hasEmpty)) return false;
+				if (!checker.checkRegions(worldName, applicableSets, hasEmpty)) return false;
 			}
 		}
 		return true;
 	}
-	
-	private final static Set<String> getUserSet(final ApplicableRegionSet rs){
+
+	private final static Set<String> getUserSet(final ApplicableRegionSet rs) {
 		final Set<String> set = new HashSet<String>();
-		if ( rs != null ){
-			for ( ProtectedRegion region : rs){
+		if (rs != null) {
+			for (ProtectedRegion region : rs) {
 				DefaultDomain dom = region.getOwners();
-				for ( String p : dom.getPlayers()){
+				for (String p : dom.getPlayers()) {
 					set.add(p.toLowerCase());
 				}
-				for ( String p : dom.getGroups()){
-					set.add("g:"+p.toLowerCase());
+				for (String p : dom.getGroups()) {
+					set.add("g:" + p.toLowerCase());
 				}
 				dom = region.getMembers();
-				for ( String p : dom.getPlayers()){
+				for (String p : dom.getPlayers()) {
 					set.add(p.toLowerCase());
 				}
-				for ( String p : dom.getGroups()){
-					set.add("g:"+p.toLowerCase());
+				for (String p : dom.getGroups()) {
+					set.add("g:" + p.toLowerCase());
 				}
 			}
 		}
-		
+
 		return set;
 	}
-	
+
 	final boolean setWG() {
 		Plugin temp = Bukkit.getServer().getPluginManager().getPlugin("WorldGuard");
 		boolean ok = true;
-		if ( temp == null ) ok = false;
-		else if ( !temp.isEnabled() ) ok = false;
-		if ( !ok){
+		if (temp == null) ok = false;
+		else if (!temp.isEnabled()) ok = false;
+		if (!ok) {
 			resetWG();
 			return false;
-		} 
+		}
 		WorldGuardPlugin wg = (WorldGuardPlugin) temp;
 		this.wg = wg;
 		this.tsWG = System.currentTimeMillis();
 		// TODO: maybe get region managers already here
 		return true;
 	}
-	final WorldGuardPlugin getWorldGuard(){
-		if (System.currentTimeMillis()-this.tsWG > this.tsThreshold) this.setWG();
+
+	final WorldGuardPlugin getWorldGuard() {
+		if (System.currentTimeMillis() - this.tsWG > this.tsThreshold) this.setWG();
 		return this.wg;
 	}
-	final void resetWG(){
+
+	final void resetWG() {
 		this.wg = null;
 		this.tsWG = 0;
 	}

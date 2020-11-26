@@ -1,17 +1,18 @@
 package me.asofold.bpl.fix.wgp;
 
+import me.asofold.bpl.fix.wgp.compatlayer.CompatConfig;
+import me.asofold.bpl.fix.wgp.compatlayer.CompatConfigFactory;
+import me.asofold.bpl.fix.wgp.compatlayer.ConfigUtil;
+import org.bukkit.Material;
+import org.bukkit.command.CommandSender;
+import org.bukkit.plugin.PluginManager;
+import org.bukkit.plugin.java.JavaPlugin;
+
 import java.io.File;
 import java.util.Collection;
 import java.util.LinkedList;
 import java.util.List;
-
-import me.asofold.bpl.fix.wgp.compatlayer.CompatConfig;
-import me.asofold.bpl.fix.wgp.compatlayer.CompatConfigFactory;
-import me.asofold.bpl.fix.wgp.compatlayer.ConfigUtil;
-
-import org.bukkit.command.CommandSender;
-import org.bukkit.plugin.PluginManager;
-import org.bukkit.plugin.java.JavaPlugin;
+import java.util.stream.Collectors;
 
 
 /**
@@ -98,8 +99,8 @@ public class WGPFix extends JavaPlugin {
 		config.setProperty("prevent-nonsticky-retract", false);
 		config.setProperty("set-worldguard-interval", 4000);
 		config.setProperty("pop-disallowed", false);
-		config.setProperty("deny-blocks.sticky", new LinkedList<Integer>());
-		config.setProperty("deny-blocks.all", new LinkedList<Integer>());
+		config.setProperty("deny-blocks.sticky", new LinkedList<String>());
+		config.setProperty("deny-blocks.all", new LinkedList<String>());
 		config.setProperty("panic", false);
 		config.setProperty("max-blocks", defaultMaxBlocks);
 		config.setProperty("monitor-structure-growth", false);
@@ -125,7 +126,7 @@ public class WGPFix extends JavaPlugin {
 			setWorldGuardSetInterval(config.getInt("set-worldguard-interval", 4000));
 			setPopDisallowed(config.getBoolean("pop-disallowed", false));
 			setMaxBlocks(config.getInt("max-blocks", defaultMaxBlocks));
-			setDeniedBlocks(config.getIntList("deny-blocks.sticky", null), config.getIntList("deny-blocks.all", null));
+			setDeniedBlocksFromString(config.getStringList("deny-blocks.sticky", null), config.getStringList("deny-blocks.all", null));
 			setMonitorStructureGrowth(config.getBoolean("monitor-structure-growth", false));
 			setMonitorFromTo(config.getBoolean("monitor-from-to", false));
 			blockListener.setWG();
@@ -142,7 +143,7 @@ public class WGPFix extends JavaPlugin {
 	/**
 	 * API
 	 * Set to true to prevent trees and huge mushrooms growing over region borders with differing owners/members.
-	 * @param boolean1
+	 * @param monitor
 	 */
 	public void setMonitorStructureGrowth(boolean monitor) {
 		blockListener.monitorStructureGrowth = monitor;
@@ -158,12 +159,22 @@ public class WGPFix extends JavaPlugin {
 	}
 
 	/**
+	 * Internal method to load the denied blocks from integers saved in the config.
+	 * The integers are interpreted as
+	 */
+	private void setDeniedBlocksFromString(Collection<String> denySticky, Collection<String> denyAll) {
+		Collection<Material> denyStickyMat = denySticky == null ? null : denySticky.stream().map(Material::valueOf).collect(Collectors.toList());
+		Collection<Material> denyAllMat = denyAll == null ? null : denyAll.stream().map(Material::valueOf).collect(Collectors.toList());
+		setDeniedBlocks(denyStickyMat, denyAllMat);
+	}
+
+	/**
 	 * (API)
 	 * Set which blocks pistons are not allow to affect. 
 	 * @param denySticky No sort of piston can affect these. May be null.
 	 * @param denyAll Sticky pistons can not affect these. May be null.
 	 */
-	public void setDeniedBlocks(Collection<Integer> denySticky, Collection<Integer> denyAll){
+	public void setDeniedBlocks(Collection<Material> denySticky, Collection<Material> denyAll){
 		blockListener.denySticky.clear();
 		blockListener.denyAll.clear();
 		if ( denySticky != null ) blockListener.denySticky.addAll(denySticky);
